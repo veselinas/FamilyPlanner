@@ -326,7 +326,7 @@ async function initMSAL(){
     setOD(false,'No Client ID'); document.getElementById('msal-btn').classList.add('v'); return;
   }
   try{
-    await loadScript("https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js");
+    await loadScript("https://unpkg.com/@azure/msal-browser@v5.x/lib/msal-browser.min.js");
     if(!window.msal){setOD(false,'MSAL fail');return;}
     msalApp = new msal.PublicClientApplication({
       auth:{clientId:window.AZURE_CLIENT_ID, redirectUri:location.href.split('?')[0]},
