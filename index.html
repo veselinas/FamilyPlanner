@@ -177,6 +177,19 @@ select:focus,input:focus{border-color:var(--accent)}
 .btn-ok{background:var(--accent2);border:none;color:#fff;padding:6px 16px;border-radius:var(--r);font-family:var(--display);font-size:12px;font-weight:700;cursor:pointer}
 .btn-ok:hover{background:var(--accent)}
 
+/* goal tag picker */
+.goal-picker{border:1px solid var(--border);border-radius:var(--r);background:var(--bg3);padding:5px 7px;display:flex;flex-wrap:wrap;gap:5px;align-items:center;cursor:text;min-height:36px}
+.goal-picker:focus-within{border-color:var(--accent)}
+.goal-tag{display:inline-flex;align-items:center;gap:4px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.35);color:var(--accent);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;white-space:nowrap}
+.goal-tag .rm{cursor:pointer;font-size:13px;line-height:1;color:var(--text3);margin-left:1px}
+.goal-tag .rm:hover{color:var(--red)}
+.goal-picker input{background:transparent;border:none;outline:none;color:var(--text);font-family:var(--display);font-size:12px;min-width:80px;flex:1}
+.goal-suggestions{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r);margin-top:3px;overflow:hidden;display:none;flex-direction:column;max-height:140px;overflow-y:auto}
+.goal-suggestions.open{display:flex}
+.goal-sugg-item{padding:6px 10px;font-size:12px;cursor:pointer;color:var(--text2);transition:background .1s}
+.goal-sugg-item:hover,.goal-sugg-item.active{background:var(--bg4);color:var(--text)}
+.goal-sugg-item.new-goal{color:var(--accent);font-style:italic}
+
 /* ── TOAST */
 #toast{position:fixed;bottom:58px;left:50%;transform:translateX(-50%);background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:7px 16px;border-radius:var(--r);font-size:12px;z-index:2000;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1}
@@ -323,33 +336,62 @@ const SCOPES = ['Files.ReadWrite','User.Read'];
 
 async function initMSAL(){
   if(!window.AZURE_CLIENT_ID||window.AZURE_CLIENT_ID==="YOUR_AZURE_CLIENT_ID_HERE"){
-    setOD(false,'No Client ID'); document.getElementById('msal-btn').classList.add('v'); return;
+    setOD(false,'No Client ID'); showSignInBtn(); return;
   }
   try{
     await loadScript("https://unpkg.com/@azure/msal-browser@v5.x/lib/msal-browser.min.js");
-    if(!window.msal){setOD(false,'MSAL fail');return;}
+    if(!window.msal){setOD(false,'MSAL fail'); showSignInBtn(); return;}
     msalApp = new msal.PublicClientApplication({
       auth:{clientId:window.AZURE_CLIENT_ID, redirectUri:location.href.split('?')[0]},
       cache:{cacheLocation:'sessionStorage'}
     });
     await msalApp.initialize();
-    await getToken();
-  }catch(e){setOD(false,'Error')}
+
+    // Handle redirect response first (in case we're returning from a redirect flow)
+    const redirectResult = await msalApp.handleRedirectPromise().catch(()=>null);
+    if(redirectResult && redirectResult.accessToken){
+      S.token=redirectResult.accessToken; S.odOk=true;
+      setOD(true,'Connected'); hideSignInBtn();
+      await loadAll(); return;
+    }
+
+    // Try silent acquisition with any cached account
+    const accs = msalApp.getAllAccounts();
+    if(accs.length){
+      try{
+        const res = await msalApp.acquireTokenSilent({scopes:SCOPES, account:accs[0]});
+        S.token=res.accessToken; S.odOk=true;
+        setOD(true,'Connected'); hideSignInBtn();
+        await loadAll(); return;
+      }catch(e){/* silent failed — fall through to show sign-in button */}
+    }
+
+    // No cached session — show sign-in button so user can authenticate
+    setOD(false,'Sign in needed');
+    showSignInBtn();
+  }catch(e){setOD(false,'Error: '+e.message); showSignInBtn();}
 }
+
 function loadScript(src){return new Promise(r=>{const s=document.createElement('script');s.src=src;s.onload=r;s.onerror=r;document.head.appendChild(s)})}
+
+function showSignInBtn(){ document.getElementById('msal-btn').classList.add('v'); }
+function hideSignInBtn(){ document.getElementById('msal-btn').classList.remove('v'); }
+
 async function getToken(interact=false){
   if(!msalApp)return;
-  const accs=msalApp.getAllAccounts();
   try{
     let res;
-    if(accs.length&&!interact) res=await msalApp.acquireTokenSilent({scopes:SCOPES,account:accs[0]});
-    else if(interact)          res=await msalApp.acquireTokenPopup({scopes:SCOPES});
-    else return;
+    if(interact){
+      res = await msalApp.acquireTokenPopup({scopes:SCOPES});
+    } else {
+      const accs = msalApp.getAllAccounts();
+      if(!accs.length){ showSignInBtn(); return; }
+      res = await msalApp.acquireTokenSilent({scopes:SCOPES, account:accs[0]});
+    }
     S.token=res.accessToken; S.odOk=true;
-    setOD(true,'Connected');
-    document.getElementById('msal-btn').classList.remove('v');
+    setOD(true,'Connected'); hideSignInBtn();
     await loadAll();
-  }catch{setOD(false,'Sign in needed');document.getElementById('msal-btn').classList.add('v')}
+  }catch(e){setOD(false,'Sign in needed'); showSignInBtn();}
 }
 document.getElementById('msal-btn').onclick=()=>getToken(true);
 function setOD(ok,lbl){
@@ -823,7 +865,9 @@ function allSubs(cat){
 function showAddTask(){
   if(!S.user){toast('Select a user first');return}
   const cats=allCats();
-  const goals=[...new Set(S.goals.filter(g=>g.username===S.user).map(g=>g.goal))];
+  // All unique goals for this user from the goals CSV
+  const allGoals=[...new Set(S.goals.filter(g=>g.username===S.user).map(g=>g.goal))].sort();
+
   const ov=modal(`<h3>New Task</h3>
     <div class="fr"><label>Type</label>
       <select id="mt"><option value="family">Family</option><option value="user">User (${S.user})</option></select></div>
@@ -843,8 +887,13 @@ function showAddTask(){
         <option value="every other day">Every other day</option><option value="weekly">Weekly</option>
         <option value="bi-weekly">Bi-weekly</option><option value="monthly">Monthly</option>
         <option value="every other month">Every other month</option><option value="yearly">Yearly</option></select></div>
-    <div class="fr"><label>Goal (optional)</label>
-      <input id="mg" list="gl" placeholder="Goal name"><datalist id="gl">${goals.map(g=>`<option value="${g}">`).join('')}</datalist></div>
+    <div class="fr">
+      <label>Goals (optional — pick existing or type new, press Enter or comma)</label>
+      <div class="goal-picker" id="goal-picker">
+        <input id="goal-input" type="text" placeholder="Type or select a goal…" autocomplete="off">
+      </div>
+      <div class="goal-suggestions" id="goal-sugg"></div>
+    </div>
     <div class="macts"><button class="btn-c">Cancel</button><button class="btn-ok">Add Task</button></div>`,
     ov=>{
       const type=ov.querySelector('#mt').value;
@@ -861,10 +910,77 @@ function showAddTask(){
         frequency:ov.querySelector('#mf').value,valid:'yes'};
       if(type==='family')S.tasks.push(entry);
       else{(S.uTasks[S.user]=S.uTasks[S.user]||[]).push(entry)}
-      const g=ov.querySelector('#mg').value.trim();
-      if(g)S.goals.push({id:'G'+Date.now(),username:S.user,goal:g,task_id:id});
+      // save all selected goals
+      const selected=ov._selectedGoals||[];
+      selected.forEach(g=>{
+        S.goals.push({id:'G'+Date.now()+'_'+Math.random().toString(36).slice(2),username:S.user,goal:g,task_id:id});
+      });
       S.dirty=true;renderAll();toast('Task added');
     });
+
+  // ── goal picker logic ──
+  ov._selectedGoals=[];
+
+  const picker=ov.querySelector('#goal-picker');
+  const inp=ov.querySelector('#goal-input');
+  const sugg=ov.querySelector('#goal-sugg');
+
+  function addGoalTag(g){
+    g=g.trim();
+    if(!g||ov._selectedGoals.includes(g))return;
+    ov._selectedGoals.push(g);
+    const tag=document.createElement('span');
+    tag.className='goal-tag';
+    tag.innerHTML=`${g}<span class="rm" data-g="${g}">×</span>`;
+    tag.querySelector('.rm').onclick=()=>{
+      ov._selectedGoals=ov._selectedGoals.filter(x=>x!==g);
+      tag.remove();
+    };
+    picker.insertBefore(tag,inp);
+    inp.value='';
+    hideSugg();
+  }
+
+  function showSugg(val){
+    const v=val.toLowerCase();
+    const matches=allGoals.filter(g=>g.toLowerCase().includes(v)&&!ov._selectedGoals.includes(g));
+    sugg.innerHTML='';
+    if(matches.length){
+      matches.forEach(g=>{
+        const it=document.createElement('div');it.className='goal-sugg-item';it.textContent=g;
+        it.addEventListener('mousedown',e=>{e.preventDefault();addGoalTag(g)});
+        sugg.appendChild(it);
+      });
+    }
+    // offer to create new if typed value doesn't exactly match an existing goal
+    if(val&&!allGoals.find(g=>g.toLowerCase()===val.toLowerCase())){
+      const it=document.createElement('div');it.className='goal-sugg-item new-goal';
+      it.textContent=`+ Create "${val}"`;
+      it.addEventListener('mousedown',e=>{e.preventDefault();addGoalTag(val)});
+      sugg.appendChild(it);
+    }
+    sugg.classList.toggle('open', sugg.children.length>0);
+  }
+
+  function hideSugg(){sugg.classList.remove('open')}
+
+  inp.addEventListener('input',()=>showSugg(inp.value));
+  inp.addEventListener('focus',()=>showSugg(inp.value));
+  inp.addEventListener('blur',()=>setTimeout(hideSugg,150));
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===','){
+      e.preventDefault();
+      const v=inp.value.trim().replace(/,$/,'');
+      if(v)addGoalTag(v); else hideSugg();
+    } else if(e.key==='Backspace'&&!inp.value&&ov._selectedGoals.length){
+      const last=ov._selectedGoals[ov._selectedGoals.length-1];
+      picker.querySelector(`.goal-tag .rm[data-g="${last}"]`)?.closest('.goal-tag')?.remove();
+      ov._selectedGoals.pop();
+    }
+  });
+  picker.addEventListener('click',()=>inp.focus());
+
+  // subcategory list
   ov.querySelector('#mc').addEventListener('input',e=>{
     const subs=allSubs(e.target.value);
     ov.querySelector('#sl').innerHTML=subs.map(s=>`<option value="${s}">`).join('');
