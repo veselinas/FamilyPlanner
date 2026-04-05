@@ -332,7 +332,7 @@ function toCSV(rows,hdrs){
    ONEDRIVE
    ═══════════════════════════════════════════ */
 let msalApp = null;
-const SCOPES = ['Files.ReadWrite','User.Read'];
+const SCOPES = ['Files.ReadWrite'];
 
 async function initMSAL(){
   if(!window.AZURE_CLIENT_ID||window.AZURE_CLIENT_ID==="YOUR_AZURE_CLIENT_ID_HERE"){
