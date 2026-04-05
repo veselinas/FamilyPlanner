@@ -756,7 +756,7 @@ function setupDrop(el,ds,isTray){
     else{
       const rect=el.getBoundingClientRect();
       const wb=document.getElementById('week-body');
-      const relY=e.clientY-rect.top+wb.scrollTop;
+      const relY=e.clientY-rect.top;
       const sm=Math.round(relY/HPX*60/15)*15;
       dropTimed(data,ds,sm);
     }
@@ -824,7 +824,7 @@ function handleTouchDrop(cx,cy,data){
   else if(dc){
     const rect=dc.getBoundingClientRect();
     const wb=document.getElementById('week-body');
-    const sm=Math.round((cy-rect.top+wb.scrollTop)/HPX*60/15)*15;
+    const Math.max(0, Math.round((cy-rect.top)/HPX*60/15)*15);
     dropTimed(data,dc.dataset.date,sm);
   }
 }
