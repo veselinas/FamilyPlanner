@@ -382,7 +382,7 @@ async function getToken(interact=false){
   try{
     let res;
     if(interact){
-      res = await msalApp.acquireTokenPopup({scopes:SCOPES});
+      res = await msalApp.loginRedirect({scopes:SCOPES});
     } else {
       const accs = msalApp.getAllAccounts();
       if(!accs.length){ showSignInBtn(); return; }
