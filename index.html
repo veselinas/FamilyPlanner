@@ -824,7 +824,7 @@ function handleTouchDrop(cx,cy,data){
   else if(dc){
     const rect=dc.getBoundingClientRect();
     const wb=document.getElementById('week-body');
-    const Math.max(0, Math.round((cy-rect.top)/HPX*60/15)*15);
+    const sm=Math.max(0, Math.round((cy-rect.top)/HPX*60/15)*15);
     dropTimed(data,dc.dataset.date,sm);
   }
 }
