@@ -351,7 +351,7 @@ async function initMSAL(){
     const redirectResult = await msalApp.handleRedirectPromise().catch(()=>null);
     if(redirectResult && redirectResult.accessToken){
       S.token=redirectResult.accessToken; S.odOk=true;
-      setOD(true,'Connected'); hideSignInBtn();
+      setOD(true,'OK'); hideSignInBtn();
       await loadAll(); return;
     }
 
@@ -361,7 +361,7 @@ async function initMSAL(){
       try{
         const res = await msalApp.acquireTokenSilent({scopes:SCOPES, account:accs[0]});
         S.token=res.accessToken; S.odOk=true;
-        setOD(true,'Connected'); hideSignInBtn();
+        setOD(true,'OK'); hideSignInBtn();
         await loadAll(); return;
       }catch(e){/* silent failed — fall through to show sign-in button */}
     }
