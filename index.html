@@ -343,7 +343,7 @@ async function initMSAL(){
     if(!window.msal){setOD(false,'MSAL fail'); showSignInBtn(); return;}
     msalApp = new msal.PublicClientApplication({
       auth:{clientId:window.AZURE_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri:"https://veselinas.github.io/FamilyPlanner/", navigateToLoginRequestUrl: false},
-      cache: { cacheLocation: 'sessionStorage' }
+      cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
     });
     await msalApp.initialize();
 
