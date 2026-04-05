@@ -757,7 +757,7 @@ function setupDrop(el,ds,isTray){
       const rect=el.getBoundingClientRect();
       const wb=document.getElementById('week-body');
       const relY=e.clientY-rect.top;
-      const sm=Math.round(relY/HPX*60/15)*15;
+      const sm=Math.max(0, Math.round(relY/HPX*60/15)*15);
       dropTimed(data,ds,sm);
     }
   });
