@@ -342,8 +342,8 @@ async function initMSAL(){
     await loadScript("https://unpkg.com/@azure/msal-browser@v5.x/lib/msal-browser.min.js");
     if(!window.msal){setOD(false,'MSAL fail'); showSignInBtn(); return;}
     msalApp = new msal.PublicClientApplication({
-      auth:{clientId:window.AZURE_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri:"https://veselinas.github.io/FamilyPlanner/"},
-      cache:{cacheLocation:'sessionStorage'}
+      auth:{clientId:window.AZURE_CLIENT_ID, authority: 'https://login.microsoftonline.com/common', redirectUri:"https://veselinas.github.io/FamilyPlanner/", navigateToLoginRequestUrl: false},
+      cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
     });
     await msalApp.initialize();
 
