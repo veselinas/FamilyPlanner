@@ -389,7 +389,7 @@ async function getToken(interact=false){
       res = await msalApp.acquireTokenSilent({scopes:SCOPES, account:accs[0]});
     }
     S.token=res.accessToken; S.odOk=true;
-    setOD(true,'Connected'); hideSignInBtn();
+    setOD(true,'OK'); hideSignInBtn();
     await loadAll();
   }catch(e){setOD(false,'Sign in needed'); showSignInBtn();}
 }
