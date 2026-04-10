@@ -594,9 +594,8 @@ function makeCard(t,type){
   c.addEventListener('dragend',()=>c.classList.remove('dragging'));
   setupTouchSrc(c,{id:t.id,type,dur:parseInt(t.duration)||0,name:t.task,fromWeek:false,fromTray:false});
   c.addEventListener('dblclick',()=>{
-    if(t.scheduled==='yes')return;
-    if(!confirm(`Mark "${t.task}" complete? (valid → no)`))return;
-    t.valid='no';S.dirty=true;renderTasks();renderWeek();
+    const taskType2 = (S.uTasks[S.user]||[]).find(x=>x.id===t.id) ? 'user' : 'family';
+    showTaskModal(t, taskType2);
   });
   return c;
 }
@@ -862,31 +861,54 @@ function allSubs(cat){
   return[...new Set([...S.tasks,...Object.values(S.uTasks).flat()].filter(t=>t.category===cat).map(t=>t.subcategory).filter(Boolean))].sort()
 }
 
-function showAddTask(){
+// showTaskModal: pass null for existingTask to add, or a task object to edit.
+function showAddTask(){ showTaskModal(null, null); }
+function showTaskModal(existingTask, existingType){
   if(!S.user){toast('Select a user first');return}
+  const isEdit = !!existingTask;
+  const t = existingTask || {};
   const cats=allCats();
-  // All unique goals for this user from the goals CSV
   const allGoals=[...new Set(S.goals.filter(g=>g.username===S.user).map(g=>g.goal))].sort();
-
-  const ov=modal(`<h3>New Task</h3>
+  // Goals already linked to this task (edit mode)
+  const linkedGoals = isEdit
+    ? S.goals.filter(g=>g.username===S.user&&g.task_id===t.id).map(g=>g.goal)
+    : [];
+ 
+  const freqOptions = ['once','daily','every other day','weekly','bi-weekly','monthly','every other month','yearly']
+    .map(f=>`<option value="${f}"${t.frequency===f?' selected':''}>${f}</option>`).join('');
+ 
+  const completedRow = isEdit ? `
+    <div class="fr" style="flex-direction:row;align-items:center;gap:8px;background:var(--bg4);padding:8px;border-radius:var(--r);margin-bottom:4px">
+      <input type="checkbox" id="m-done" style="width:16px;height:16px;cursor:pointer;accent-color:var(--green)"${t.valid==='no'?' checked':''}>
+      <label for="m-done" style="font-size:12px;color:var(--text2);text-transform:none;letter-spacing:0;cursor:pointer">Mark as completed (sets valid → no)</label>
+    </div>` : '';
+ 
+  const ov=modal(`<h3>${isEdit?'Edit Task':'New Task'}</h3>
+    ${completedRow}
     <div class="fr"><label>Type</label>
-      <select id="mt"><option value="family">Family</option><option value="user">User (${S.user})</option></select></div>
+      <select id="mt">
+        <option value="family"${existingType==='family'?' selected':''}>Family</option>
+        <option value="user"${existingType==='user'?' selected':''}>User (${S.user})</option>
+      </select></div>
     <div class="fr"><label>Category</label>
-      <input id="mc" list="cl" placeholder="Category"><datalist id="cl">${cats.map(c=>`<option value="${c}">`).join('')}</datalist></div>
+      <input id="mc" list="cl" placeholder="Category" value="${t.category||''}"><datalist id="cl">${cats.map(c=>`<option value="${c}">`).join('')}</datalist></div>
     <div class="fr"><label>Subcategory</label>
-      <input id="ms" list="sl" placeholder="Subcategory"><datalist id="sl"></datalist></div>
-    <div class="fr"><label>Task name</label><input id="mn" type="text" placeholder="Description"></div>
-    <div class="fr"><label>Duration (min)</label><input id="md" type="number" min="0" placeholder="e.g. 30"></div>
+      <input id="ms" list="sl" placeholder="Subcategory" value="${t.subcategory||''}"><datalist id="sl"></datalist></div>
+    <div class="fr"><label>Task name</label><input id="mn" type="text" placeholder="Description" value="${t.task||''}"></div>
+    <div class="fr"><label>Duration (min)</label><input id="md" type="number" min="0" placeholder="e.g. 30" value="${t.duration||''}"></div>
     <div class="fr"><label>Priority</label>
-      <select id="mp"><option value="L">Low</option><option value="M" selected>Medium</option><option value="H">High</option></select></div>
+      <select id="mp">
+        <option value="L"${t.priority==='L'?' selected':''}>Low</option>
+        <option value="M"${(!t.priority||t.priority==='M')?' selected':''}>Medium</option>
+        <option value="H"${t.priority==='H'?' selected':''}>High</option>
+      </select></div>
     <div class="fr"><label>Scheduled</label>
-      <select id="msc"><option value="no">No</option><option value="yes">Yes</option></select></div>
-    <div class="fr"><label>Deadline</label><input id="mdd" type="date"></div>
-    <div class="fr"><label>Frequency</label>
-      <select id="mf"><option value="once">Once</option><option value="daily">Daily</option>
-        <option value="every other day">Every other day</option><option value="weekly">Weekly</option>
-        <option value="bi-weekly">Bi-weekly</option><option value="monthly">Monthly</option>
-        <option value="every other month">Every other month</option><option value="yearly">Yearly</option></select></div>
+      <select id="msc">
+        <option value="no"${t.scheduled!=='yes'?' selected':''}>No</option>
+        <option value="yes"${t.scheduled==='yes'?' selected':''}>Yes</option>
+      </select></div>
+    <div class="fr"><label>Deadline</label><input id="mdd" type="date" value="${t.deadline||''}"></div>
+    <div class="fr"><label>Frequency</label><select id="mf">${freqOptions}</select></div>
     <div class="fr">
       <label>Goals (optional — pick existing or type new, press Enter or comma)</label>
       <div class="goal-picker" id="goal-picker">
@@ -894,30 +916,51 @@ function showAddTask(){
       </div>
       <div class="goal-suggestions" id="goal-sugg"></div>
     </div>
-    <div class="macts"><button class="btn-c">Cancel</button><button class="btn-ok">Add Task</button></div>`,
+    <div class="macts"><button class="btn-c">Cancel</button><button class="btn-ok">${isEdit?'Save Changes':'Add Task'}</button></div>`,
     ov=>{
       const type=ov.querySelector('#mt').value;
       const cat=ov.querySelector('#mc').value.trim()||'Other';
       const sub=ov.querySelector('#ms').value.trim()||'General';
       const name=ov.querySelector('#mn').value.trim();
       if(!name){toast('Enter task name');return}
-      const id='T'+Date.now();
-      const entry={id,category:cat,subcategory:sub,task:name,
-        duration:ov.querySelector('#md').value.trim(),
-        priority:ov.querySelector('#mp').value,
-        scheduled:ov.querySelector('#msc').value,
-        deadline:ov.querySelector('#mdd').value,
-        frequency:ov.querySelector('#mf').value,valid:'yes'};
-      if(type==='family')S.tasks.push(entry);
-      else{(S.uTasks[S.user]=S.uTasks[S.user]||[]).push(entry)}
-      // save all selected goals
-      const selected=ov._selectedGoals||[];
-      selected.forEach(g=>{
-        S.goals.push({id:'G'+Date.now()+'_'+Math.random().toString(36).slice(2),username:S.user,goal:g,task_id:id});
-      });
-      S.dirty=true;renderAll();toast('Task added');
+      const completed = isEdit && ov.querySelector('#m-done')?.checked;
+ 
+      if(isEdit){
+        // Update the existing task object in-place
+        t.category  = cat;
+        t.subcategory = sub;
+        t.task      = name;
+        t.duration  = ov.querySelector('#md').value.trim();
+        t.priority  = ov.querySelector('#mp').value;
+        t.scheduled = ov.querySelector('#msc').value;
+        t.deadline  = ov.querySelector('#mdd').value;
+        t.frequency = ov.querySelector('#mf').value;
+        if(completed) t.valid = 'no';
+        // Replace goals: remove old links for this task, add new ones
+        const keepOtherGoals = S.goals.filter(g=>!(g.username===S.user&&g.task_id===t.id));
+        const newGoalLinks = (ov._selectedGoals||[]).map(g=>({
+          id:'G'+Date.now()+'_'+Math.random().toString(36).slice(2),
+          username:S.user, goal:g, task_id:t.id
+        }));
+        S.goals = [...keepOtherGoals, ...newGoalLinks];
+        S.dirty=true; renderAll(); toast('Task updated');
+      } else {
+        const id='T'+Date.now();
+        const entry={id,category:cat,subcategory:sub,task:name,
+          duration:ov.querySelector('#md').value.trim(),
+          priority:ov.querySelector('#mp').value,
+          scheduled:ov.querySelector('#msc').value,
+          deadline:ov.querySelector('#mdd').value,
+          frequency:ov.querySelector('#mf').value,valid:'yes'};
+        if(type==='family')S.tasks.push(entry);
+        else{(S.uTasks[S.user]=S.uTasks[S.user]||[]).push(entry)}
+        const selected=ov._selectedGoals||[];
+        selected.forEach(g=>{
+          S.goals.push({id:'G'+Date.now()+'_'+Math.random().toString(36).slice(2),username:S.user,goal:g,task_id:id});
+        });
+        S.dirty=true; renderAll(); toast('Task added');
+      }
     });
-
   // ── goal picker logic ──
   ov._selectedGoals=[];
 
