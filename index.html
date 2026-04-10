@@ -554,7 +554,7 @@ function renderTasks(){
       const cols=document.createElement('div');cols.className='task-cols';
       //const fl=document.createElement('div');fl.className='col-lbl fam';fl.textContent='Family';
       //const ul=document.createElement('div');ul.className='col-lbl usr';ul.textContent=S.user;
-      cols.appendChild(fl);cols.appendChild(ul);
+      //cols.appendChild(fl);cols.appendChild(ul);
       const fc=document.createElement('div');fc.className='tcol';
       const uc=document.createElement('div');uc.className='tcol';
       sortTasks((ft[cat]||{})[sub]||[]).forEach(t=>fc.appendChild(makeCard(t,'fam')));
