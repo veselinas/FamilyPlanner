@@ -1051,6 +1051,15 @@ function showTaskModal(existingTask, existingType){
     const subs=allSubs(e.target.value);
     ov.querySelector('#sl').innerHTML=subs.map(s=>`<option value="${s}">`).join('');
   });
+
+  // Show/hide the date+time row based on Scheduled select
+  const msc = ov.querySelector('#msc');
+  const schedRow = ov.querySelector('#sched-time-row');
+  function toggleSchedRow(){
+    schedRow.style.display = msc.value==='yes' ? '' : 'none';
+  }
+  msc.addEventListener('change', toggleSchedRow);
+  toggleSchedRow(); // run once on open in case editing a scheduled task
 }
 
 /* ═══════════════════════════════════════════
