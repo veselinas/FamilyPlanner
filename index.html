@@ -904,6 +904,14 @@ function showTaskModal(existingTask, existingType){
         <option value="no"${t.scheduled!=='yes'?' selected':''}>No</option>
         <option value="yes"${t.scheduled==='yes'?' selected':''}>Yes</option>
       </select></div>
+    <div class="fr" id="sched-time-row" style="display:none">
+      <label>Schedule date &amp; start time (optional)</label>
+      <div style="display:flex;gap:6px">
+        <input id="msdate" type="date" style="flex:1">
+        <input id="mstime" type="time" step="900" style="flex:1">
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">End time will be inferred from duration. Leave blank to schedule manually later.</div>
+    </div>
     <div class="fr"><label>Deadline</label><input id="mdd" type="date" value="${t.deadline||''}"></div>
     <div class="fr"><label>Frequency</label><select id="mf">${freqOptions}</select></div>
     <div class="fr">
