@@ -963,6 +963,24 @@ function showTaskModal(existingTask, existingType){
         selected.forEach(g=>{
           S.goals.push({id:'G'+Date.now()+'_'+Math.random().toString(36).slice(2),username:S.user,goal:g,task_id:id});
         });
+        // If scheduled=yes and a date+time were provided, add directly to weekplan
+        const schedDate = ov.querySelector('#msdate')?.value;
+        const schedTime = ov.querySelector('#mstime')?.value;
+        if(entry.scheduled==='yes' && schedDate && schedTime && S.user){
+          const dur = parseInt(entry.duration)||0;
+          const sm  = t2m(schedTime);
+          const dateObj = new Date(schedDate+'T00:00:00');
+          const wk  = isoWeek(dateObj);
+          const yr  = dateObj.getFullYear();
+          if(!S.plans[S.user]) S.plans[S.user]=[];
+          S.plans[S.user].push({
+            week_num: String(wk), year: String(yr),
+            date: schedDate, task_id: id, task: name,
+            start_time: m2t(sm),
+            end_time:   dur ? m2t(sm+dur) : m2t(sm),
+            completed: 'no'
+          });
+        }
         S.dirty=true; renderAll(); toast('Task added');
       }
     });
