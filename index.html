@@ -966,19 +966,24 @@ function showTaskModal(existingTask, existingType){
         // If scheduled=yes and a date+time were provided, add directly to weekplan
         const schedDate = ov.querySelector('#msdate')?.value;
         const schedTime = ov.querySelector('#mstime')?.value;
-        if(entry.scheduled==='yes' && schedDate && schedTime && S.user){
+        if(entry.scheduled==='yes' && schedDate && schedTime){
           const dur = parseInt(entry.duration)||0;
           const sm  = t2m(schedTime);
           const dateObj = new Date(schedDate+'T00:00:00');
           const wk  = isoWeek(dateObj);
           const yr  = dateObj.getFullYear();
-          if(!S.plans[S.user]) S.plans[S.user]=[];
-          S.plans[S.user].push({
+          const planEntry = {
             week_num: String(wk), year: String(yr),
             date: schedDate, task_id: id, task: name,
             start_time: m2t(sm),
             end_time:   dur ? m2t(sm+dur) : m2t(sm),
             completed: 'no'
+          };
+          // Family task → push to every user's weekplan; user task → current user only
+          const targets = type==='family' ? S.users.map(u=>u.username) : [S.user];
+          targets.forEach(uname => {
+            if(!S.plans[uname]) S.plans[uname]=[];
+            S.plans[uname].push({...planEntry});
           });
         }
         S.dirty=true; renderAll(); toast('Task added');
