@@ -245,10 +245,14 @@ select:focus,input:focus{border-color:var(--accent)}
 </div>
 
 <div id="print-bar">
-  <label>Print week:</label>
+  <label>Export CSV:</label>
   <input id="p-week" type="number" min="1" max="53" placeholder="Wk">
   <input id="p-year" type="number" min="2020" max="2099" placeholder="Year">
-  <button id="btn-print">⬇ Export CSV</button>
+  <button id="btn-print">⬇ CSV</button>
+  <div style="width:1px;background:var(--border);align-self:stretch;margin:0 4px"></div>
+  <label>Print day:</label>
+  <input id="p-date" type="date">
+  <button id="btn-print-day">🖨 Print Day</button>
 </div>
 
 <div id="toast"></div>
@@ -1092,6 +1096,167 @@ function exportCSV(){
   a.click();toast('CSV exported');
 }
 
+function printDay(){
+  if(!S.user){toast('Select a user first');return;}
+  const dateVal = document.getElementById('p-date').value;
+  if(!dateVal){toast('Pick a date first');return;}
+
+  const plan = S.plans[S.user]||[];
+  const entries = plan.filter(p=>p.date===dateVal);
+
+  const timed = entries
+    .filter(p=>!(p.start_time==='00:00'&&p.end_time==='00:00'))
+    .sort((a,b)=>t2m(a.start_time)-t2m(b.start_time));
+  const untimed = entries
+    .filter(p=>p.start_time==='00:00'&&p.end_time==='00:00');
+
+  const prioStyle={
+    H:{bg:'#ffe4e4',border:'#f5b8b8',label:'High'},
+    M:{bg:'#fff8e1',border:'#f5dfa0',label:'Medium'},
+    L:{bg:'#e8f5e9',border:'#b2dfb4',label:'Low'},
+  };
+
+  const d = new Date(dateVal+'T00:00:00');
+  const dateLabel = d.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
+
+  const allMins = timed.flatMap(p=>[t2m(p.start_time),t2m(p.end_time)]);
+  const minHour = allMins.length ? Math.min(7*60,...allMins) : 7*60;
+  const maxHour = allMins.length ? Math.max(22*60,...allMins) : 22*60;
+  const startH  = Math.floor(Math.min(minHour,7*60)/60);
+  const endH    = Math.ceil(Math.max(maxHour,22*60)/60);
+  const totalMins = (endH - startH)*60;
+  const PX_PER_MIN = 1.6;
+
+  function buildTimedBlocks(){
+    if(!timed.length) return '<div style="color:#aaa;font-size:12px;padding:12px 0">No timed tasks</div>';
+    return timed.map(p=>{
+      const sm = t2m(p.start_time);
+      const em = t2m(p.end_time);
+      const top = (sm - startH*60)*PX_PER_MIN;
+      const height = Math.max(20,(em-sm)*PX_PER_MIN);
+      const task = findTask(p.task_id)||{};
+      const pr = task.priority||'M';
+      const ps = prioStyle[pr]||prioStyle.M;
+      const dur = task.duration ? `${task.duration}m` : '';
+      return `<div style="position:absolute;left:52px;right:0;top:${top}px;height:${height}px;
+        background:${ps.bg};border-left:3px solid ${ps.border};border-radius:4px;
+        padding:2px 6px;overflow:hidden;box-sizing:border-box">
+        <div style="font-size:10px;font-weight:700;color:#555">${p.start_time}${dur?' · '+dur:''}</div>
+        <div style="font-size:11px;font-weight:600;color:#222;line-height:1.2">${p.task}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function buildHourLabels(){
+    let out='';
+    for(let h=startH;h<=endH;h++){
+      const top=(h-startH)*60*PX_PER_MIN;
+      out+=`<div style="position:absolute;left:0;top:${top}px;width:44px;text-align:right;
+        font-size:9px;color:#999;line-height:1;padding-right:4px">${pad2(h)}:00</div>
+        <div style="position:absolute;left:52px;right:0;top:${top}px;border-top:1px solid #e8e8e8"></div>`;
+      if(h<endH){
+        [15,30,45].forEach(q=>{
+          const qt=top+q*PX_PER_MIN;
+          out+=`<div style="position:absolute;left:52px;right:0;top:${qt}px;border-top:1px dashed #f0f0f0"></div>`;
+        });
+      }
+    }
+    return out;
+  }
+
+  function buildTodoList(){
+    if(!untimed.length) return '<div style="color:#aaa;font-size:12px">None</div>';
+    return untimed.map(p=>{
+      const task=findTask(p.task_id)||{};
+      const pr=task.priority||'M';
+      const ps=prioStyle[pr]||prioStyle.M;
+      const dur=task.duration?`<span style="color:#888;font-size:10px"> (${task.duration}m)</span>`:'';
+      const prLabel=`<span style="background:${ps.bg};border:1px solid ${ps.border};
+        border-radius:3px;font-size:9px;font-weight:700;padding:1px 4px;color:#555;margin-right:5px">${ps.label[0]}</span>`;
+      return `<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f0f0f0">
+        <div style="width:16px;height:16px;border:1.5px solid #bbb;border-radius:50%;flex-shrink:0;margin-top:2px"></div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#222">${prLabel}${p.task}${dur}</div>
+          ${task.category?`<div style="font-size:10px;color:#999;margin-top:2px">${task.category}${task.subcategory?' · '+task.subcategory:''}</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const schedHeight = totalMins*PX_PER_MIN;
+
+  const html=`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Day Plan — ${dateLabel}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;
+    background:#fff;color:#222;padding:28px 32px}
+  @media print{
+    body{padding:12px 18px}
+    @page{size:A4 portrait;margin:14mm 14mm 14mm 14mm}
+  }
+  .page-header{display:flex;justify-content:space-between;align-items:flex-start;
+    border-bottom:2px solid #222;padding-bottom:10px;margin-bottom:20px}
+  .page-title{font-size:22px;font-weight:800;letter-spacing:-.5px}
+  .page-user{font-size:13px;color:#666;margin-top:3px}
+  .page-date{font-size:13px;font-weight:600;text-align:right;color:#444}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start}
+  .col-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;
+    color:#888;margin-bottom:12px;border-bottom:1px solid #eee;padding-bottom:6px}
+  .legend{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#555}
+  .legend-swatch{width:12px;height:12px;border-radius:2px;border:1px solid}
+  .no-print-btn{position:fixed;bottom:20px;right:20px;background:#222;color:#fff;
+    border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:600;
+    cursor:pointer;z-index:999}
+  @media print{.no-print-btn{display:none}}
+</style>
+</head>
+<body>
+<div class="page-header">
+  <div>
+    <div class="page-title">Daily Schedule</div>
+    <div class="page-user">${S.user}</div>
+  </div>
+  <div class="page-date">${dateLabel}</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#ffe4e4;border-color:#f5b8b8"></div>High priority</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#fff8e1;border-color:#f5dfa0"></div>Medium priority</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e8f5e9;border-color:#b2dfb4"></div>Low priority</div>
+</div>
+
+<div class="cols">
+  <div>
+    <div class="col-title">Timed Schedule</div>
+    <div style="position:relative;height:${schedHeight}px">
+      ${buildHourLabels()}
+      ${buildTimedBlocks()}
+    </div>
+  </div>
+  <div>
+    <div class="col-title">To Do (no fixed time)</div>
+    ${buildTodoList()}
+  </div>
+</div>
+
+<button class="no-print-btn" onclick="window.print()">🖨 Print / Save PDF</button>
+<script>
+  setTimeout(()=>window.print(), 400);
+<\/script>
+</body>
+</html>`;
+
+  const w = window.open('','_blank');
+  if(!w){toast('Allow popups to print');return;}
+  w.document.write(html);
+  w.document.close();
+}
+  
 /* ═══════════════════════════════════════════
    TOAST
    ═══════════════════════════════════════════ */
@@ -1109,9 +1274,11 @@ document.getElementById('goal-filter').onchange=()=>{renderTasks()};
 document.getElementById('btn-prev').onclick=()=>{S.dayOff=Math.max(0,S.dayOff-1);renderWeek()};
 document.getElementById('btn-next').onclick=()=>{S.dayOff=Math.min(6,S.dayOff+1);renderWeek()};
 document.getElementById('btn-print').onclick=exportCSV;
+document.getElementById('btn-print-day').onclick=printDay;
 
 document.getElementById('p-week').value=dispWeek;
 document.getElementById('p-year').value=dispYear;
+document.getElementById('p-date').value=dateStr(NOW);
 
 window.addEventListener('resize',()=>{const ph=innerWidth<768;if(ph!==S.phone){S.phone=ph;renderWeek()}});
 setTimeout(()=>{document.getElementById('week-body').scrollTop=7*HPX},120);
