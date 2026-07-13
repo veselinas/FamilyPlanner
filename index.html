@@ -1151,8 +1151,9 @@ function printDay(){
     let out='';
     for(let h=startH;h<=endH;h++){
       const top=(h-startH)*60*PX_PER_MIN;
+      const hh = String(h).padStart(2,'0');
       out+=`<div style="position:absolute;left:0;top:${top}px;width:44px;text-align:right;
-        font-size:9px;color:#999;line-height:1;padding-right:4px">${pad2(h)}:00</div>
+        font-size:9px;color:#999;line-height:1;padding-right:4px">${hh}:00</div>
         <div style="position:absolute;left:52px;right:0;top:${top}px;border-top:1px solid #e8e8e8"></div>`;
       if(h<endH){
         [15,30,45].forEach(q=>{
