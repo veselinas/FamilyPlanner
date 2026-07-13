@@ -746,7 +746,7 @@ function cycleStatus(p){
     if(t){
       // Record the date of the scheduled plan entry as last_completed
       const d=new Date(p.date+'T00:00:00');
-      t.last_completed=`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`;
+      t.last_completed=`${p2(d.getDate())}/${p2(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`;
       if(t.scheduled==='yes') t.valid='no';
     }
   }
