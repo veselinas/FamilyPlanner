@@ -99,7 +99,8 @@ select:focus,input:focus{border-color:var(--accent)}
 .tdur{font-size:9px;color:var(--text3);font-family:var(--mono)}
 .tmeta{font-size:9px;color:var(--text3);font-family:var(--mono);margin-top:2px;display:flex;gap:5px;flex-wrap:wrap}
 .tdl{color:var(--orange)}.tfreq{color:var(--purple)}
-
+.tlc{color:var(--green)}
+  
 /* no-user */
 .no-user{padding:16px;text-align:center;color:var(--text3);font-size:12px}
 
@@ -277,7 +278,7 @@ const S = {
 };
 
 const FOLDER = "App_FamilyPlanner";
-const TASK_HDRS = ['id','category','subcategory','task','duration','priority','scheduled','deadline','frequency','valid'];
+const TASK_HDRS = ['id','category','subcategory','task','duration','priority','scheduled','deadline','frequency','valid','last_completed'];
 const PLAN_HDRS = ['week_num','year','date','task_id','task','start_time','end_time','completed'];
 const GOAL_HDRS = ['id','username','goal','task_id'];
 const USER_HDRS = ['username'];
@@ -578,12 +579,13 @@ function makeCard(t,type){
   const dur=t.duration?` (${t.duration}m)`:'';
   const dl=t.deadline?`<span class="tdl">⚑ ${t.deadline}</span>`:'';
   const fr=t.frequency&&t.frequency!=='once'?`<span class="tfreq">↻ ${t.frequency}</span>`:'';
+  const lc=t.last_completed?`<span class="tlc" title="Last completed">✓ ${t.last_completed}</span>`:'';
   c.innerHTML=`
     <div class="tcard-top">
       <span class="prio-badge pP-${pr}">${pr}</span>
       <span class="tname">${t.task}</span><span class="tdur">${dur}</span>
     </div>
-    <div class="tmeta">${dl}${fr}</div>`;
+    <div class="tmeta">${dl}${fr}${lc}</div>`;
   c.addEventListener('dragstart',e=>{
     e.dataTransfer.setData('text/plain',JSON.stringify({id:t.id,type,dur:parseInt(t.duration)||0,name:t.task}));
     c.classList.add('dragging');
@@ -735,7 +737,15 @@ function makeWBlock(p,top,height){
 function cycleStatus(p){
   const ord=['no','in progress','yes'];
   p.completed=ord[(ord.indexOf(p.completed||'no')+1)%3];
-  if(p.completed==='yes'){const t=findTask(p.task_id);if(t&&t.scheduled==='yes')t.valid='no';}
+  if(p.completed==='yes'){
+    const t=findTask(p.task_id);
+    if(t){
+      // Record the date of the scheduled plan entry as last_completed
+      const d=new Date(p.date+'T00:00:00');
+      t.last_completed=`${pad2(d.getDate())}/${pad2(d.getMonth()+1)}/${String(d.getFullYear()).slice(2)}`;
+      if(t.scheduled==='yes') t.valid='no';
+    }
+  }
   S.dirty=true;renderWeek();renderTasks();
 }
 
