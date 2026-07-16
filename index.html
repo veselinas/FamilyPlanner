@@ -111,6 +111,19 @@ select:focus,input:focus{border-color:var(--accent)}
 #week-nav button:hover{background:var(--bg4)}
 #day-lbl{font-size:12px;font-family:var(--mono);color:var(--text2);font-weight:600}
 
+/* week grid */
+#week-grid{flex:1;display:flex;flex-direction:column;overflow:hidden}
+#day-hdrs-row{display:flex;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+.t-gutter{width:42px;flex-shrink:0}
+.dhdr{flex:1;text-align:center;padding:4px 2px;font-size:10px;font-family:var(--mono);color:var(--text3);border-left:1px solid var(--border)}
+.dhdr.today{color:var(--accent);font-weight:700;background:rgba(88,166,255,.06)}
+
+/* unscheduled tray */
+#unsched-row{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;min-height:38px;max-height:72px;overflow-y:auto}
+.unsched-gutter{width:42px;flex-shrink:0;font-size:9px;color:var(--text3);font-family:var(--mono);padding:5px 5px 0;text-align:right}
+.unsched-col{flex:1;border-left:1px solid var(--border);min-height:38px;padding:3px;display:flex;flex-wrap:wrap;gap:3px;position:relative}
+.unsched-col.dov{background:rgba(88,166,255,.07)}
+  
 /* hourly time grid */
 #week-body{flex:1;overflow-y:scroll;overflow-x:hidden}
 #week-body::-webkit-scrollbar{width:4px}
