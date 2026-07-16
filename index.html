@@ -1265,11 +1265,6 @@ function printDay(){
   <div><div class="page-title">Daily Schedule</div><div class="page-user">${S.user}</div></div>
   <div class="page-date">${dateLabel}</div>
 </div>
-<div class="legend">
-  <div class="legend-item"><div class="legend-swatch" style="background:#ffe4e4;border-color:#f5b8b8"></div>High</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#fff8e1;border-color:#f5dfa0"></div>Medium</div>
-  <div class="legend-item"><div class="legend-swatch" style="background:#e8f5e9;border-color:#b2dfb4"></div>Low</div>
-</div>
 ${useSplit ? `
 <div class="two-col" style="margin-bottom:10px">
   <div><div class="col-title">Schedule 06:00–15:00</div>${buildScheduleCol(START_H,midH)}</div>
