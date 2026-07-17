@@ -745,7 +745,7 @@ function renderPlanEntries(vi,days){
     const col=document.querySelectorAll('.dcol')[ci];if(!col)return;
     // Group tasks by hour
     const byHour={};
-    plan.filter(p=>p.date===ds&&!(p.start_time==='00:00'&&p.end_time==='00:00')).forEach(p=>{
+    plan.filter(p=>p.date===ds&&p.start_time!=='00:00').forEach(p=>{
       const h=Math.floor(t2m(p.start_time)/60);
       if(!byHour[h])byHour[h]=[];
       byHour[h].push(p);
@@ -804,7 +804,7 @@ function renderUnschedChips(vi,days){
   vi.forEach((di,ci)=>{
     const ds=dateStr(days[di]);
     const uc=document.querySelectorAll('.unsched-col')[ci];if(!uc)return;
-    plan.filter(p=>p.date===ds&&p.start_time==='00:00'&&p.end_time==='00:00').forEach(p=>{
+    plan.filter(p=>p.date===ds&&p.start_time==='00:00').forEach(p=>{
       const tp=taskType(p.task_id);
       const chip=makeWBlock(p, true); // hideMeta=true hides start time, keeps priority+duration
       chip.draggable=true;
@@ -834,7 +834,12 @@ function makeWBlock(p, hideMeta=false){
   const tp=taskType(p.task_id);
   const task=findTask(p.task_id)||{};
   const pr=task.priority||'M';
-  const dur=task.duration?`${task.duration}m`:'';
+  // Prefer duration derived from the plan entry's own times (catches manually-entered durations)
+  // Fall back to the task's stored duration if start===end (unscheduled or zero-duration)
+  const planDurMins = t2m(p.end_time) - t2m(p.start_time);
+  const dur = planDurMins > 0
+    ? `${planDurMins}m`
+    : (task.duration ? `${task.duration}m` : '');
   const cat=task.category||'';
   const sub=task.subcategory||'';
   const catStr=cat?(sub?`(${cat} · ${sub})`:`(${cat})`):'';
@@ -941,8 +946,41 @@ function removePlan(data){
 
 function dropTray(data,ds){
   if(!S.user){toast('Select a user first');return}
-  removePlan(data);
-  pushPlan({week_num:String(dispWeek),year:String(dispYear),date:ds,task_id:data.id,task:data.name,start_time:'00:00',end_time:'00:00',completed:'no'});
+  const task=findTask(data.id)||{};
+  const hasDur=data.dur>0||parseInt(task.duration)>0;
+  if(!hasDur){
+    // No duration known — prompt before placing in the unscheduled tray
+    const ov=document.createElement('div');ov.className='movl';
+    ov.innerHTML=`<div class="mdl" style="max-width:320px">
+      <h3 style="margin-bottom:12px">Add to unscheduled</h3>
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2)">${data.name}</div>
+      <div class="fr"><label>Duration (min) — leave blank if unknown</label>
+        <input id="tray-dur" type="number" min="0" placeholder="e.g. 30"></div>
+      <div class="macts">
+        <button class="btn-c">Cancel</button>
+        <button class="btn-ok">Add</button>
+      </div>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('#tray-dur').focus();
+    ov.querySelector('.btn-c').onclick=()=>ov.remove();
+    ov.querySelector('.btn-ok').onclick=()=>{
+      const dur=parseInt(ov.querySelector('#tray-dur').value)||0;
+      removePlan(data);
+      // Store duration in end_time offset from midnight so it's retrievable later
+      // For unscheduled: start=end=00:00 when no duration, or end=00:00+dur
+      pushPlan({week_num:String(dispWeek),year:String(dispYear),date:ds,task_id:data.id,task:data.name,
+        start_time:'00:00',end_time:dur?m2t(dur):'00:00',completed:'no'});
+      ov.remove();
+    };
+    ov.addEventListener('keydown',e=>{if(e.key==='Enter')ov.querySelector('.btn-ok').click();});
+    ov.addEventListener('click',e=>{if(e.target===ov)ov.remove();});
+  } else {
+    removePlan(data);
+    const dur=data.dur||parseInt(task.duration)||0;
+    pushPlan({week_num:String(dispWeek),year:String(dispYear),date:ds,task_id:data.id,task:data.name,
+      start_time:'00:00',end_time:dur?m2t(dur):'00:00',completed:'no'});
+  }
 }
 
 function dropToHour(data, ds, hour){
@@ -1285,10 +1323,10 @@ function printDay(){
   const entries = plan.filter(p=>p.date===dateVal);
  
   const timed = entries
-    .filter(p=>!(p.start_time==='00:00'&&p.end_time==='00:00'))
+    .filter(p=>p.start_time!=='00:00')
     .sort((a,b)=>t2m(a.start_time)-t2m(b.start_time));
   const untimed = entries
-    .filter(p=>p.start_time==='00:00'&&p.end_time==='00:00');
+    .filter(p=>p.start_time==='00:00');
  
   const prioStyle={
     H:{bg:'#ffe4e4',border:'#f5b8b8',label:'High'},
