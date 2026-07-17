@@ -136,10 +136,47 @@ select:focus,input:focus{border-color:var(--accent)}
 .dcol.today-col{background:rgba(88,166,255,.02)}
 
 /* hourly row */
-.hour-row{min-height:var(--hr-h);border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px;padding:2px 3px;position:relative;flex-shrink:0}
+.hour-row{border-top:1px solid var(--border);display:flex;flex-direction:column;gap:2px;padding:2px 3px;position:relative;flex-shrink:0}
 .hour-row:first-child{border-top:none}
 .hour-row.dov{background:rgba(88,166,255,.07)}
 .hour-row.now-hour{border-top:2px solid var(--red)}
+
+/* phone: rows grow with content */
+@media(max-width:767px){
+  .hour-row{min-height:var(--hr-h)}
+}
+/* desktop: rows fixed height, overflow hidden */
+@media(min-width:768px){
+  .hour-row{height:var(--hr-h);overflow:hidden}
+}
+
+/* overflow indicator */
+.hr-overflow{position:absolute;bottom:2px;right:3px;font-size:9px;color:var(--text3);line-height:1;pointer-events:none;z-index:3}
+
+/* tooltip */
+.hr-tooltip{
+  display:none;
+  position:absolute;
+  top:0;left:100%;
+  margin-left:6px;
+  z-index:200;
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:7px 10px;
+  min-width:200px;
+  max-width:280px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+  pointer-events:none;
+}
+.hour-row:hover .hr-tooltip{display:block}
+/* flip to left if near right edge — handled by JS class */
+.hr-tooltip.flip-left{left:auto;right:100%;margin-left:0;margin-right:6px}
+.hr-tooltip-row{font-size:11px;padding:3px 0;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:1px}
+.hr-tooltip-row:last-child{border-bottom:none}
+.hr-tooltip-meta{font-size:9px;font-family:var(--mono);opacity:.8}
+.hr-tooltip-name{font-size:11px;font-weight:600;word-break:break-word;white-space:normal}
+.hr-tooltip-cat{font-size:9px;color:var(--text3);opacity:.7}
 
 /* week task chip */
 .wblock{border-radius:5px;padding:3px 6px 3px 6px;cursor:pointer;border:1px solid transparent;transition:filter .12s;user-select:none;font-family:var(--display);display:flex;flex-direction:column;position:relative;gap:1px}
@@ -676,13 +713,12 @@ function renderWeek(){
 
   renderPlanEntries(vi,days);
   renderUnschedChips(vi,days);
-  syncTimeLabels(vi);
+  requestAnimationFrame(()=>syncTimeLabels());
 }
 
 function planFor(){ return S.user?(S.plans[S.user]||[]):[] }
 
-function syncTimeLabels(vi){
-  // Match each time label's height to its corresponding hour-row in the first visible day col
+function syncTimeLabels(){
   const tl=document.getElementById('t-labels');
   tl.innerHTML='';
   const firstCol=document.querySelectorAll('.dcol')[0];
@@ -692,7 +728,6 @@ function syncTimeLabels(vi){
     const el=document.createElement('div');
     el.className='tlabel';
     el.textContent=`${p2(h)}:00`;
-    // Match the rendered height of the hour row exactly
     el.style.height=row.offsetHeight+'px';
     el.style.minHeight=row.offsetHeight+'px';
     tl.appendChild(el);
@@ -701,18 +736,68 @@ function syncTimeLabels(vi){
   
 function renderPlanEntries(vi,days){
   document.querySelectorAll('.hour-row .wblock').forEach(e=>e.remove());
+  document.querySelectorAll('.hr-overflow').forEach(e=>e.remove());
+  document.querySelectorAll('.hr-tooltip').forEach(e=>e.remove());
   const plan=planFor();
+  const isDesktop=!S.phone;
   vi.forEach((di,ci)=>{
     const ds=dateStr(days[di]);
     const col=document.querySelectorAll('.dcol')[ci];if(!col)return;
+    // Group tasks by hour
+    const byHour={};
     plan.filter(p=>p.date===ds&&!(p.start_time==='00:00'&&p.end_time==='00:00')).forEach(p=>{
       const h=Math.floor(t2m(p.start_time)/60);
+      if(!byHour[h])byHour[h]=[];
+      byHour[h].push(p);
+    });
+    Object.entries(byHour).forEach(([h,tasks])=>{
       const row=col.querySelector(`.hour-row[data-hour="${h}"]`);
-      if(row) row.appendChild(makeWBlock(p));
+      if(!row)return;
+      if(isDesktop){
+        // Add all wblocks — CSS clips overflow; we detect overflow after paint
+        tasks.forEach(p=>row.appendChild(makeWBlock(p)));
+        // Build tooltip with all tasks regardless of visibility
+        const tip=document.createElement('div');
+        tip.className='hr-tooltip';
+        const prioColors={H:'var(--red)',M:'var(--yellow)',L:'var(--green)'};
+        tip.innerHTML=tasks.map(p=>{
+          const task=findTask(p.task_id)||{};
+          const pr=task.priority||'M';
+          const dur=task.duration?` · ${task.duration}m`:'';
+          const cat=task.category||'';
+          const sub=task.subcategory||'';
+          const catStr=cat?(sub?`(${cat} · ${sub})`:`(${cat})`):'';
+          return `<div class="hr-tooltip-row">
+            <span class="hr-tooltip-meta" style="color:${prioColors[pr]||prioColors.M}">${pr} · ${p.start_time}${dur}</span>
+            <span class="hr-tooltip-name">${p.task}</span>
+            ${catStr?`<span class="hr-tooltip-cat">${catStr}</span>`:''}
+          </div>`;
+        }).join('');
+        row.appendChild(tip);
+        // After paint: check if any wblock is clipped and show overflow indicator
+        requestAnimationFrame(()=>{
+          const clipped=tasks.some((_,i)=>{
+            const blocks=row.querySelectorAll('.wblock');
+            if(!blocks[i])return false;
+            return blocks[i].offsetTop+blocks[i].offsetHeight > row.clientHeight;
+          });
+          if(clipped){
+            const ind=document.createElement('div');
+            ind.className='hr-overflow';
+            ind.textContent='···';
+            row.appendChild(ind);
+          }
+          // Flip tooltip to left if it would overflow the viewport
+          const colRect=col.getBoundingClientRect();
+          if(colRect.right+290>window.innerWidth) tip.classList.add('flip-left');
+        });
+      } else {
+        // Phone: all tasks, rows grow naturally
+        tasks.forEach(p=>row.appendChild(makeWBlock(p)));
+      }
     });
   });
 }
-
 function renderUnschedChips(vi,days){
   document.querySelectorAll('.unsched-col .wblock').forEach(e=>e.remove());
   const plan=planFor();
