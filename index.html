@@ -780,26 +780,18 @@ function makeWBlock(p, hideMeta=false){
     </div>
     <span class="wx" title="Remove">✕</span>`;
 
-b.querySelector('.wx').addEventListener('click', e=>{e.stopPropagation();deletePlanEntry(p);});
-  b.innerHTML=`
+  b.querySelector('.wx').addEventListener('click', e=>{e.stopPropagation();deletePlanEntry(p);});
+
   b.addEventListener('click', e=>{
-    <div class="wblock-row1">
     if(e.target.classList.contains('wx'))return;
-      ${hideMeta?`<span class="wblock-meta" style="color:${prioCol}">${pr}${dur?' · '+dur:''}</span>`:`<span class="wblock-meta" style="color:${prioCol}">${pr} ${p.start_time}${dur?' · '+dur:''}</span>`}
     cycleStatus(p);
-      ${statusIcon}
   });
-    </div>
+
   b.draggable=true;
-    <div class="wblock-row2">
   b.addEventListener('dragstart', e=>{
-      <span class="wblock-name">${p.task}</span>
     const dur=t2m(p.end_time)-t2m(p.start_time);
-      ${catStr?`<span class="wblock-cat">${catStr}</span>`:''}
     e.dataTransfer.setData('text/plain',JSON.stringify({fromWeek:true,planEntry:p,id:p.task_id,type:tp,name:p.task,dur}));
-    </div>
     b.classList.add('dragging-w');
-    <span class="wx" title="Remove">✕</span>`;
     showTrash();
   });
   b.addEventListener('dragend', ()=>{b.classList.remove('dragging-w');hideTrash();});
