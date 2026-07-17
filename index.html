@@ -119,9 +119,9 @@ select:focus,input:focus{border-color:var(--accent)}
 .dhdr.today{color:var(--accent);font-weight:700;background:rgba(88,166,255,.06)}
 
 /* unscheduled tray */
-#unsched-row{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;min-height:38px;max-height:72px;overflow-y:auto}
+#unsched-row{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;max-height:160px;overflow-y:auto}
 .unsched-gutter{width:42px;flex-shrink:0;font-size:9px;color:var(--text3);font-family:var(--mono);padding:5px 5px 0;text-align:right}
-.unsched-col{flex:1;border-left:1px solid var(--border);min-height:38px;padding:3px;display:flex;flex-wrap:wrap;gap:3px;position:relative}
+.unsched-col{flex:1;border-left:1px solid var(--border);min-height:38px;padding:3px;display:flex;flex-direction:column;gap:3px;position:relative}
 .unsched-col.dov{background:rgba(88,166,255,.07)}
   
 /* hourly time grid */
@@ -130,7 +130,7 @@ select:focus,input:focus{border-color:var(--accent)}
 #week-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 #tgrid{display:flex}
 #t-labels{width:42px;flex-shrink:0}
-.tlabel{height:var(--hr-h);display:flex;align-items:flex-start;padding-top:4px;padding-right:5px;font-size:8px;font-family:var(--mono);color:var(--text3);justify-content:flex-end;flex-shrink:0}
+.tlabel{height:var(--hr-h);display:flex;align-items:flex-start;padding-top:6px;padding-right:5px;font-size:8px;font-family:var(--mono);color:var(--text3);justify-content:flex-end;flex-shrink:0;min-height:var(--hr-h)}
 #dcols-wrap{flex:1;display:flex}
 .dcol{flex:1;border-left:1px solid var(--border);display:flex;flex-direction:column}
 .dcol.today-col{background:rgba(88,166,255,.02)}
@@ -142,15 +142,18 @@ select:focus,input:focus{border-color:var(--accent)}
 .hour-row.now-hour{border-top:2px solid var(--red)}
 
 /* week task chip */
-.wblock{border-radius:5px;padding:3px 6px;font-size:10px;cursor:pointer;border:1px solid transparent;transition:filter .12s;user-select:none;font-family:var(--display);display:flex;align-items:flex-start;gap:4px;position:relative;flex-wrap:wrap}
-.wblock.fam{background:rgba(88,166,255,.18);border-color:rgba(88,166,255,.4);color:var(--family)}
-.wblock.usr{background:rgba(63,185,80,.18);border-color:rgba(63,185,80,.4);color:var(--user)}
+.wblock{border-radius:5px;padding:3px 6px 3px 6px;cursor:pointer;border:1px solid transparent;transition:filter .12s;user-select:none;font-family:var(--display);display:flex;flex-direction:column;position:relative;gap:1px}
+.wblock.fam{background:rgba(88,166,255,.18);border-color:rgba(88,166,255,.4)}
+.wblock.usr{background:rgba(63,185,80,.18);border-color:rgba(63,185,80,.4)}
 .wblock:hover{filter:brightness(1.2)}
 .wblock.dragging-w{opacity:.35}
+.wblock-row1{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .wblock-meta{font-size:9px;font-family:var(--mono);opacity:.8;white-space:nowrap}
-.wblock-name{font-size:11px;font-weight:600;flex:1;min-width:0;word-break:break-word;white-space:normal}
-.wblock-status{font-size:11px;flex-shrink:0}
-.wblock .wx{position:absolute;top:2px;right:3px;width:13px;height:13px;display:none;align-items:center;justify-content:center;font-size:10px;line-height:1;cursor:pointer;border-radius:3px;color:inherit;opacity:.7}
+.wblock-status{font-size:10px;flex-shrink:0}
+.wblock-row2{display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}
+.wblock-name{font-size:11px;font-weight:600;word-break:break-word;white-space:normal;line-height:1.3}
+.wblock-cat{font-size:9px;color:var(--text3);opacity:.7;white-space:normal;word-break:break-word}
+.wblock .wx{position:absolute;top:2px;right:3px;width:13px;height:13px;display:none;align-items:center;justify-content:center;font-size:10px;line-height:1;cursor:pointer;border-radius:3px;opacity:.7}
 .wblock:hover .wx{display:flex}
 .wblock .wx:hover{opacity:1;background:rgba(255,255,255,.15)}
 .tchip .cx{display:none;margin-left:3px;font-size:11px;cursor:pointer;opacity:.6}
@@ -640,14 +643,8 @@ function renderWeek(){
   document.getElementById('day-lbl').textContent=
     pd.toLocaleDateString('en-GB',{weekday:'long',day:'2-digit',month:'short'});
 
-  const tl=document.getElementById('t-labels');
-  tl.innerHTML='';
-  for(let h=0;h<24;h++){
-    const el=document.createElement('div');
-    el.className='tlabel';
-    el.textContent=`${p2(h)}:00`;
-    tl.appendChild(el);
-  }
+  // Time labels are rebuilt after renderPlanEntries so heights match hour rows
+  document.getElementById('t-labels').innerHTML='';
 
   const dcw=document.getElementById('dcols-wrap');dcw.innerHTML='';
   document.querySelectorAll('.unsched-col').forEach(e=>e.remove());
@@ -679,10 +676,29 @@ function renderWeek(){
 
   renderPlanEntries(vi,days);
   renderUnschedChips(vi,days);
+  syncTimeLabels(vi);
 }
 
 function planFor(){ return S.user?(S.plans[S.user]||[]):[] }
 
+function syncTimeLabels(vi){
+  // Match each time label's height to its corresponding hour-row in the first visible day col
+  const tl=document.getElementById('t-labels');
+  tl.innerHTML='';
+  const firstCol=document.querySelectorAll('.dcol')[0];
+  if(!firstCol)return;
+  const rows=firstCol.querySelectorAll('.hour-row');
+  rows.forEach((row,h)=>{
+    const el=document.createElement('div');
+    el.className='tlabel';
+    el.textContent=`${p2(h)}:00`;
+    // Match the rendered height of the hour row exactly
+    el.style.height=row.offsetHeight+'px';
+    el.style.minHeight=row.offsetHeight+'px';
+    tl.appendChild(el);
+  });
+}
+  
 function renderPlanEntries(vi,days){
   document.querySelectorAll('.hour-row .wblock').forEach(e=>e.remove());
   const plan=planFor();
@@ -698,23 +714,22 @@ function renderPlanEntries(vi,days){
 }
 
 function renderUnschedChips(vi,days){
-  document.querySelectorAll('.tchip').forEach(e=>e.remove());
+  document.querySelectorAll('.unsched-col .wblock').forEach(e=>e.remove());
   const plan=planFor();
   vi.forEach((di,ci)=>{
     const ds=dateStr(days[di]);
     const uc=document.querySelectorAll('.unsched-col')[ci];if(!uc)return;
     plan.filter(p=>p.date===ds&&p.start_time==='00:00'&&p.end_time==='00:00').forEach(p=>{
       const tp=taskType(p.task_id);
-      const chip=document.createElement('div');chip.className=`tchip ${tp}`;
-      chip.innerHTML=`${p.task}<span class="cx" title="Remove">✕</span>`;
+      const chip=makeWBlock(p, true); // hideMeta=true hides start time, keeps priority+duration
       chip.draggable=true;
-      chip.querySelector('.cx').addEventListener('click', e=>{e.stopPropagation();deletePlanEntry(p);});
+      chip.querySelector('.wx').addEventListener('click', e=>{e.stopPropagation();deletePlanEntry(p);});
       chip.addEventListener('dragstart', e=>{
         e.dataTransfer.setData('text/plain',JSON.stringify({fromTray:true,planEntry:p,id:p.task_id,type:tp,name:p.task,dur:0}));
         showTrash();
       });
       chip.addEventListener('dragend', ()=>hideTrash());
-      chip.addEventListener('click', e=>{if(e.target.classList.contains('cx'))return;cycleStatus(p);});
+      chip.addEventListener('click', e=>{if(e.target.classList.contains('wx'))return;cycleStatus(p);});
       setupTouchSrc(chip,{fromTray:true,planEntry:p,id:p.task_id,type:tp,name:p.task,dur:0},()=>cycleStatus(p));
       uc.appendChild(chip);
     });
@@ -730,11 +745,14 @@ function findTask(id){
   return S.tasks.find(t=>t.id===id)||Object.values(S.uTasks).flat().find(t=>t.id===id)||null;
 }
 
-function makeWBlock(p){
+function makeWBlock(p, hideMeta=false){
   const tp=taskType(p.task_id);
   const task=findTask(p.task_id)||{};
   const pr=task.priority||'M';
   const dur=task.duration?`${task.duration}m`:'';
+  const cat=task.category||'';
+  const sub=task.subcategory||'';
+  const catStr=cat?(sub?`(${cat} · ${sub})`:`(${cat})`):'';
   const b=document.createElement('div');
   b.className=`wblock ${tp}`;
 
@@ -745,29 +763,50 @@ function makeWBlock(p){
   const prioColors={H:'var(--red)',M:'var(--yellow)',L:'var(--green)'};
   const prioCol=prioColors[pr]||prioColors.M;
 
-  b.innerHTML=`
-    <span class="wblock-meta" style="color:${prioCol}">${pr} ${p.start_time}${dur?' · '+dur:''}</span>
-    <span class="wblock-name">${p.task}</span>
+  const metaRow=hideMeta?'':`<div class="wblock-row1">
+    <span class="wblock-meta" style="color:${prioCol}">${pr}${dur?' · '+dur:''}</span>
     ${statusIcon}
+  </div>`;
+  const timeTag=hideMeta?'':p.start_time?`<span class="wblock-meta" style="color:${prioCol};margin-right:2px">${p.start_time}</span>`:'';
+
+  b.innerHTML=`
+    <div class="wblock-row1">
+      ${hideMeta?`<span class="wblock-meta" style="color:${prioCol}">${pr}${dur?' · '+dur:''}</span>`:`<span class="wblock-meta" style="color:${prioCol}">${pr} ${p.start_time}${dur?' · '+dur:''}</span>`}
+      ${statusIcon}
+    </div>
+    <div class="wblock-row2">
+      <span class="wblock-name">${p.task}</span>
+      ${catStr?`<span class="wblock-cat">${catStr}</span>`:''}
+    </div>
     <span class="wx" title="Remove">✕</span>`;
 
-  b.querySelector('.wx').addEventListener('click', e=>{e.stopPropagation();deletePlanEntry(p);});
+b.querySelector('.wx').addEventListener('click', e=>{e.stopPropagation();deletePlanEntry(p);});
+  b.innerHTML=`
   b.addEventListener('click', e=>{
+    <div class="wblock-row1">
     if(e.target.classList.contains('wx'))return;
+      ${hideMeta?`<span class="wblock-meta" style="color:${prioCol}">${pr}${dur?' · '+dur:''}</span>`:`<span class="wblock-meta" style="color:${prioCol}">${pr} ${p.start_time}${dur?' · '+dur:''}</span>`}
     cycleStatus(p);
+      ${statusIcon}
   });
+    </div>
   b.draggable=true;
+    <div class="wblock-row2">
   b.addEventListener('dragstart', e=>{
+      <span class="wblock-name">${p.task}</span>
     const dur=t2m(p.end_time)-t2m(p.start_time);
+      ${catStr?`<span class="wblock-cat">${catStr}</span>`:''}
     e.dataTransfer.setData('text/plain',JSON.stringify({fromWeek:true,planEntry:p,id:p.task_id,type:tp,name:p.task,dur}));
+    </div>
     b.classList.add('dragging-w');
+    <span class="wx" title="Remove">✕</span>`;
     showTrash();
   });
   b.addEventListener('dragend', ()=>{b.classList.remove('dragging-w');hideTrash();});
   setupTouchSrc(b,{fromWeek:true,planEntry:p,id:p.task_id,type:tp,name:p.task,dur:t2m(p.end_time)-t2m(p.start_time)},()=>cycleStatus(p));
   return b;
 }
-
+  
 function deletePlanEntry(p){
   if(!S.user)return;
   const arr=S.plans[S.user]||[];
@@ -1208,13 +1247,19 @@ function printDay(){
       const hStr=String(h).padStart(2,'0');
       const hasTask=tasks.length>0;
       const taskRows=tasks.map(p=>{
-        const task=findTask(p.task_id)||{};
-        const pr=task.priority||'M';
-        const ps=prioStyle[pr]||prioStyle.M;
-        const dur=task.duration?` · ${task.duration}m`:'';
-        const prBadge=`<span style="background:${ps.bg};border:1px solid ${ps.border};border-radius:2px;font-size:8px;font-weight:700;padding:0 3px;color:#555;margin-right:4px;white-space:nowrap;display:inline-block">${ps.label[0]}</span>`;
-        return `<div style="padding:2px 0;border-bottom:1px dotted #eee;line-height:1.5;word-break:break-word">${prBadge}<span style="font-size:10px;font-weight:600;color:#222">${p.task}</span><span style="font-size:9px;color:#888;margin-left:4px">${p.start_time}${dur}</span></div>`;
-      }).join('');
+          const task=findTask(p.task_id)||{};
+          const pr=task.priority||'M';
+          const ps=prioStyle[pr]||prioStyle.M;
+          const dur=task.duration?` · ${task.duration}m`:'';
+          const cat=task.category||'';
+          const sub=task.subcategory||'';
+          const catStr=cat?(sub?`(${cat} · ${sub})`:`(${cat})`):'';
+          const prBadge=`<span style="background:${ps.bg};border:1px solid ${ps.border};border-radius:2px;font-size:8px;font-weight:700;padding:0 3px;color:#555;margin-right:4px;white-space:nowrap;display:inline-block">${ps.label[0]}</span>`;
+          return `<div style="padding:2px 0;border-bottom:1px dotted #eee;line-height:1.5">
+            <div style="font-size:9px;color:#777;margin-bottom:1px">${prBadge}${p.start_time}${dur}</div>
+            <div style="font-size:10px;font-weight:600;color:#222;word-break:break-word">${p.task}${catStr?`<span style="font-size:8px;color:#aaa;font-weight:400;margin-left:4px">${catStr}</span>`:''}</div>
+          </div>`;
+        }).join('');
       out+=`<div style="display:flex;border-bottom:1px solid ${hasTask?'#d0d0d0':'#efefef'};min-height:22px;background:${hasTask?'#fafafa':'#fff'}">
         <div style="width:32px;flex-shrink:0;font-size:9px;padding:3px 4px 0 0;text-align:right;border-right:1px solid #e0e0e0;font-weight:${hasTask?700:400};color:${hasTask?'#333':'#ccc'}">${hStr}</div>
         <div style="flex:1;padding:2px 5px;min-height:${hasTask?'auto':'22px'}">${taskRows}</div>
@@ -1231,9 +1276,15 @@ function printDay(){
       const ps=prioStyle[pr]||prioStyle.M;
       const dur=task.duration?` <span style="color:#999;font-size:9px">(${task.duration}m)</span>`:'';
       const prBadge=`<span style="background:${ps.bg};border:1px solid ${ps.border};border-radius:2px;font-size:8px;font-weight:700;padding:0 3px;color:#555;margin-right:4px;display:inline-block">${ps.label[0]}</span>`;
+      const cat=task.category||'';
+      const sub=task.subcategory||'';
+      const catStr=cat?(sub?`(${cat} · ${sub})`:`(${cat})`):'';
       return `<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid #f0f0f0">
-        <div style="width:13px;height:13px;border:1.5px solid #ccc;border-radius:50%;flex-shrink:0;margin-top:2px"></div>
-        <div style="font-size:11px;color:#222;line-height:1.4">${prBadge}${p.task}${dur}${task.category?`<span style="color:#bbb;font-size:9px;margin-left:4px">${task.category}${task.subcategory?' · '+task.subcategory:''}</span>`:''}</div>
+        <div style="width:13px;height:13px;border:1.5px solid #ccc;border-radius:50%;flex-shrink:0;margin-top:4px"></div>
+        <div style="line-height:1.4">
+          <div style="font-size:9px;color:#888;margin-bottom:1px">${prBadge}${dur}</div>
+          <div style="font-size:11px;font-weight:600;color:#222;word-break:break-word">${p.task}${catStr?`<span style="font-size:9px;color:#aaa;font-weight:400;margin-left:4px">${catStr}</span>`:''}</div>
+        </div>
       </div>`;
     }).join('');
   }
