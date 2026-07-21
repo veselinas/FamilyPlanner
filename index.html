@@ -1142,8 +1142,8 @@ function showTaskModal(existingTask, existingType){
     ${completedRow}
     <div class="fr"><label>Type</label>
       <select id="mt">
-        <option value="family"${existingType==='family'?' selected':''}>Family</option>
         <option value="user"${existingType==='user'?' selected':''}>User (${S.user})</option>
+        <option value="family"${existingType==='family'?' selected':''}>Family</option>
       </select></div>
     <div class="fr"><label>Category</label>
       <input id="mc" list="cl" placeholder="Category" value="${t.category||''}"><datalist id="cl">${cats.map(c=>`<option value="${c}">`).join('')}</datalist></div>
